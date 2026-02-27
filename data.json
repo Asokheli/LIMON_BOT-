@@ -1,0 +1,92 @@
+import aiohttp
+import datetime
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+BOT_TOKEN = "8628474974:AAH3995lgTDmZeLaFKzfBU_sxKySIzWH10w"
+API_KEY = "DANGERxINFO"
+API_URL = "https://danger-info-alpha.vercel.app/accinfo"
+
+
+# 🕒 Time Convert
+def format_time(ts):
+    try:
+        return datetime.datetime.fromtimestamp(int(ts)).strftime("%d %b %Y, %I:%M %p")
+    except:
+        return "Unknown"
+
+
+# ℹ️ INFO COMMAND
+async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Use like this:\n/info uid\nExample: /info 2133907304")
+        return
+
+    uid = context.args[0]
+    msg = await update.message.reply_text("Fetching player info... ⏳")
+
+    url = f"{API_URL}?uid={uid}&key={API_KEY}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=15) as resp:
+
+                if resp.status != 200:
+                    await msg.edit_text(f"API Error ❌\nStatus Code: {resp.status}")
+                    return
+
+                data = await resp.json()
+
+    except Exception as e:
+        await msg.edit_text(f"Request Failed ❌\n{str(e)}")
+        return
+
+    if "basicInfo" not in data:
+        await msg.edit_text("Player not found ❌")
+        return
+
+    b = data["basicInfo"]
+    s = data.get("socialInfo", {})
+    c = data.get("clanBasicInfo", {})
+    p = data.get("petInfo", {})
+
+    text = f"""
+╔══『 🎮 PLAYER PROFILE 』══╗
+
+👤 Nickname: {b.get('nickname')}
+🆔 UID: {b.get('accountId')}
+🌍 Region: {b.get('region')}
+🎖 Level: {b.get('level')}
+❤️ Likes: {b.get('liked')}
+
+🏆 BR Rank: {b.get('rank')} ({b.get('rankingPoints')} pts)
+🎯 CS Rank: {b.get('csRank')} ({b.get('csRankingPoints')} pts)
+🔥 Max Rank: {b.get('maxRank')}
+
+📅 Created: {format_time(b.get('createAt'))}
+⏰ Last Login: {format_time(b.get('lastLoginAt'))}
+
+╠══ 🐾 PET INFO ══╣
+🐶 Pet: {p.get('name', 'No Pet')} (Lv {p.get('level', '-')})
+
+╠══ 🏰 CLAN INFO ══╣
+🏷 Clan: {c.get('clanName', 'No Clan')}
+👥 Members: {c.get('memberNum', '-')}/{c.get('capacity', '-')}
+
+╠══ 🌐 SOCIAL ══╣
+🗣 Language: {s.get('language')}
+📝 Signature: {s.get('signature', 'No signature')}
+
+╚═══════════════════╝
+"""
+
+    await msg.edit_text(text)
+
+
+# ▶️ BOT START
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("info", info_command))
+
+    print("Bot running...")
+    app.run_polling()
